@@ -32,7 +32,14 @@ local function main(params)
   local content_layers_pretrained = params.content_layers
   local mrf_layers_pretrained = params.mrf_layers
 
-  --print('lulu experimental adam optimizer')
+  -- print('-----------------> dev mode')
+  -- print('-----------------> dev mode')
+  -- print('-----------------> dev mode')
+  -- print('-----------------> dev mode')
+  -- cudnn.benchmark=false
+  -- spatial layer set mode(1,1,1)
+  -- manual seed(33)
+
   -----------------------------------------------------------------------------------
   -- read images
   -----------------------------------------------------------------------------------
@@ -40,26 +47,23 @@ local function main(params)
   local target_image = image.load(string.format('%s', params.style_name), 3)
   
   source_image = image.scale(source_image, params.max_size , 'bilinear')
-  print(params.max_size*params.style_scale)
+  print(string.format('style resolution: %d', params.max_size*params.style_scale))
+  -- print(params.max_size*params.style_scale)
   target_image = image.scale(target_image, params.max_size*params.style_scale, 'bilinear')
   
-  local tmpfilename = string.format('%s/style.png', params.output_folder)
-  image.save(tmpfilename, target_image)
-    
   local render_height = source_image:size()[2]
   local render_width = source_image:size()[3]
   local source_image_caffe = preprocess(source_image):float()
   local target_image_caffe = preprocess(target_image):float()
   
-  local scaler=.5
   local pyramid_source_image_caffe = {}
   for i_res = 1, params.num_res do
-    pyramid_source_image_caffe[i_res] = image.scale(source_image_caffe, math.ceil(source_image:size()[3] * math.pow(scaler, params.num_res - i_res)), math.ceil(source_image:size()[2] * math.pow(scaler, params.num_res - i_res)), 'bilinear')
+    pyramid_source_image_caffe[i_res] = image.scale(source_image_caffe, math.ceil(source_image:size()[3] * math.pow(0.5, params.num_res - i_res)), math.ceil(source_image:size()[2] * math.pow(0.5, params.num_res - i_res)), 'bilinear')
   end
 
   local pyramid_target_image_caffe = {}
   for i_res = 1, params.num_res do
-    pyramid_target_image_caffe[i_res] = image.scale(target_image_caffe, math.ceil(target_image:size()[3] * math.pow(scaler, params.num_res - i_res)), math.ceil(target_image:size()[2] * math.pow(scaler, params.num_res - i_res)), 'bilinear')
+    pyramid_target_image_caffe[i_res] = image.scale(target_image_caffe, math.ceil(target_image:size()[3] * math.pow(0.5, params.num_res - i_res)), math.ceil(target_image:size()[2] * math.pow(0.5, params.num_res - i_res)), 'bilinear')
   end
 
   ------------------------------------------------------------------------------------------------------
@@ -84,7 +88,7 @@ local function main(params)
     end
 
     local norm = params.normalize_gradients
-    print(params.normalize_gradients)
+    -- print(params.normalize_gradients)
     local loss_module = nn.ContentLoss(params.content_weight, feature, norm):float()
     if params.gpu >= 0 then
       if params.backend == 'cudnn' then
@@ -165,10 +169,7 @@ local function main(params)
       local min_x, min_y, max_x, max_y = computeBB(pyramid_target_image_caffe[cur_res]:size()[3], pyramid_target_image_caffe[cur_res]:size()[2], alpha)
       local target_image_rt_caffe = image.rotate(pyramid_target_image_caffe[cur_res], alpha, 'bilinear')
       target_image_rt_caffe = target_image_rt_caffe[{{1, target_image_rt_caffe:size()[1]}, {min_y, max_y}, {min_x, max_x}}]
-      
---      local rotfilename = string.format('%s/style_rotate_%d.png', params.output_folder,i_r)
---      image.save(rotfilename, target_image_rt_caffe)
-      
+
       for i_s = -params.target_num_scale, params.target_num_scale do
         local max_sz = math.floor(math.max(target_image_rt_caffe:size()[2], target_image_rt_caffe:size()[3]) * torch.pow(params.target_step_scale, i_s))
         local target_image_rt_s_caffe = image.scale(target_image_rt_caffe, max_sz, 'bilinear')
@@ -192,6 +193,7 @@ local function main(params)
     -- print('*****************************************************')
     -- printma(string.format('build target mrf'));
     -- print('*****************************************************')
+    
     for i_image = 1, #target_images_caffe do
       -- print(string.format('image %d, ', i_image))
       net:forward(target_images_caffe[i_image])
@@ -364,6 +366,11 @@ local function main(params)
       require 'cutorch'
       require 'cunn'
       cutorch.setDevice(params.gpu + 1)
+      --use manual seed
+      --https://github.com/soumith/cudnn.torch/issues/92
+      -- print ('--------------> manual seed : 33')
+      torch.manualSeed(33)
+      cutorch.manualSeed(33)
     else
       require 'cltorch'
       require 'clnn'
@@ -375,6 +382,8 @@ local function main(params)
 
   if params.backend == 'cudnn' then
     require 'cudnn'
+    -- print ('--------------------> cudnn.benchmark ?')
+    cudnn.benchmark = false
   end
 
   local loadcaffe_backend = params.backend
@@ -467,8 +476,13 @@ local function main(params)
           i_net_layer = i_net_layer + 1
 	  local name = layer.name
 	  local layer_type = torch.type(layer)
-	  print ('layer type')
-	  print (layer_type)
+	  -- print ('layer type')
+	  -- print (layer_type)
+      local is_spatial = (layer_type == 'cudnn.SpatialConvolution')
+      if is_spatial then
+          -- print ('-------------> spatial : layer mode 1,1,1 ?')
+          layer:setMode(1,1,1)
+      end
 	  local is_pooling = (layer_type == 'cudnn.SpatialMaxPooling' or layer_type == 'nn.SpatialMaxPooling')
 	  if is_pooling and params.pooling == 'avg' then
 	    assert(layer.padW == 0 and layer.padH == 0)
@@ -483,7 +497,7 @@ local function main(params)
 	      end
 	    end
 	    local msg = 'Replacing max pooling at layer %d with average pooling'
-	    print(string.format(msg, i))
+	    -- print(string.format(msg, i))
 	    net:add(avg_pool_layer)
 	  else
 	    net:add(layer)
@@ -516,16 +530,16 @@ local function main(params)
       cnn = nil
       collectgarbage()
 
-      print(net)
+      -- print(net)
 
-      print('content_layers: ')
+      -- print('content_layers: ')
       for i = 1, #content_layers do
-        print(content_layers[i])
+        -- print(content_layers[i])
       end
 
-      print('mrf_layers: ')
+      -- print('mrf_layers: ')
       for i = 1, #mrf_layers do
-        print(mrf_layers[i])
+          -- print(mrf_layers[i])
       end
 
       print('network has been built.')
@@ -547,11 +561,11 @@ local function main(params)
 
     end
 
-    print('*****************************************************')
-    print(string.format('Synthesis started at resolution ', cur_res))
-    print('*****************************************************')
+    -- print('*****************************************************')
+    print(string.format('Synthesis started at resolution %d', cur_res))
+    -- print('*****************************************************')
 
-    print('Implementing mrf layers ...')
+    -- print('Implementing mrf layers ...')
     for i = 1, #mrf_layers do
       if build_mrf(i) == false then
         print('build_mrf failed')

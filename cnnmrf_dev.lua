@@ -73,8 +73,8 @@ cmd:option('-target_step_rotation', math.pi/24)
 cmd:option('-target_step_scale', 1.05)
 cmd:option('-output_folder', 'data/result/trans/MRF/')
 
-cmd:option('-proto_file', '/shared/foss/CNNMRF/data/models/VGG_ILSVRC_19_layers_deploy.prototxt')
-cmd:option('-model_file', '/shared/foss/CNNMRF/data/models/VGG_ILSVRC_19_layers.caffemodel')
+cmd:option('-proto_file', '/shared/foss-18/CNNMRF/data/models/VGG_ILSVRC_19_layers_deploy.prototxt')
+cmd:option('-model_file', '/shared/foss-18/CNNMRF/data/models/VGG_ILSVRC_19_layers.caffemodel')
 cmd:option('-gpu', 0, 'Zero-indexed ID of the GPU to use')
 cmd:option('-nCorrection', 25)
 cmd:option('-print_iter', 10)
@@ -90,9 +90,9 @@ end
 
 local wrapper = nil
 if params.type == 'transfer' then
-    wrapper = require 'transfer_CNNMRF_wrapper'
+    wrapper = require 'transfer_CNNMRF_wrapper_dev'
 else
-    wrapper = require 'transfer_CNNMRF_wrapper'
+    wrapper = require 'transfer_CNNMRF_wrapper_dev'
 end
 
 wrapper.main(params)

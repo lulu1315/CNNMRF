@@ -3,7 +3,6 @@ require 'nn'
 require 'image'
 require 'paths'
 require 'loadcaffe'
-require 'optim'
 
 paths.dofile('mylib/myoptimizer.lua')
 paths.dofile('mylib/tv.lua')
@@ -14,6 +13,10 @@ paths.dofile('mylib/content.lua')
 torch.setdefaulttensortype('torch.FloatTensor') -- float as default tensor type
 
 local function main(params)
+  os.execute('mkdir data/result/')
+  os.execute('mkdir data/result/trans/')
+  os.execute('mkdir data/result/trans/MRF/')
+  os.execute(string.format('mkdir %s', params.output_folder))
 
   local net = nn.Sequential()
   local next_content_idx = 1
@@ -32,34 +35,28 @@ local function main(params)
   local content_layers_pretrained = params.content_layers
   local mrf_layers_pretrained = params.mrf_layers
 
-  --print('lulu experimental adam optimizer')
   -----------------------------------------------------------------------------------
   -- read images
   -----------------------------------------------------------------------------------
-  local source_image = image.load(string.format('%s', params.content_name), 3)
-  local target_image = image.load(string.format('%s', params.style_name), 3)
-  
-  source_image = image.scale(source_image, params.max_size , 'bilinear')
-  print(params.max_size*params.style_scale)
-  target_image = image.scale(target_image, params.max_size*params.style_scale, 'bilinear')
-  
-  local tmpfilename = string.format('%s/style.png', params.output_folder)
-  image.save(tmpfilename, target_image)
-    
+  local source_image = image.load(string.format('data/content/%s.jpg', params.content_name), 3)
+  local target_image = image.load(string.format('data/style/%s.jpg', params.style_name), 3)
+
+  source_image = image.scale(source_image, params.max_size, 'bilinear')
+  target_image = image.scale(target_image, params.max_size, 'bilinear')
+
   local render_height = source_image:size()[2]
   local render_width = source_image:size()[3]
   local source_image_caffe = preprocess(source_image):float()
   local target_image_caffe = preprocess(target_image):float()
-  
-  local scaler=.5
+
   local pyramid_source_image_caffe = {}
   for i_res = 1, params.num_res do
-    pyramid_source_image_caffe[i_res] = image.scale(source_image_caffe, math.ceil(source_image:size()[3] * math.pow(scaler, params.num_res - i_res)), math.ceil(source_image:size()[2] * math.pow(scaler, params.num_res - i_res)), 'bilinear')
+    pyramid_source_image_caffe[i_res] = image.scale(source_image_caffe, math.ceil(source_image:size()[3] * math.pow(0.5, params.num_res - i_res)), math.ceil(source_image:size()[2] * math.pow(0.5, params.num_res - i_res)), 'bilinear')
   end
 
   local pyramid_target_image_caffe = {}
   for i_res = 1, params.num_res do
-    pyramid_target_image_caffe[i_res] = image.scale(target_image_caffe, math.ceil(target_image:size()[3] * math.pow(scaler, params.num_res - i_res)), math.ceil(target_image:size()[2] * math.pow(scaler, params.num_res - i_res)), 'bilinear')
+    pyramid_target_image_caffe[i_res] = image.scale(target_image_caffe, math.ceil(target_image:size()[3] * math.pow(0.5, params.num_res - i_res)), math.ceil(target_image:size()[2] * math.pow(0.5, params.num_res - i_res)), 'bilinear')
   end
 
   ------------------------------------------------------------------------------------------------------
@@ -135,7 +132,7 @@ local function main(params)
 
 
   -- --------------------------------------------------------------------------------------------------------
-  -- -- local function for adding a mrf layer, with image rotation and scaling
+  -- -- local function for adding a mrf layer, with image rotation andn scaling
   -- --------------------------------------------------------------------------------------------------------
   local function add_mrf()
       local mrf_module = nn.MRFMM()
@@ -165,10 +162,7 @@ local function main(params)
       local min_x, min_y, max_x, max_y = computeBB(pyramid_target_image_caffe[cur_res]:size()[3], pyramid_target_image_caffe[cur_res]:size()[2], alpha)
       local target_image_rt_caffe = image.rotate(pyramid_target_image_caffe[cur_res], alpha, 'bilinear')
       target_image_rt_caffe = target_image_rt_caffe[{{1, target_image_rt_caffe:size()[1]}, {min_y, max_y}, {min_x, max_x}}]
-      
---      local rotfilename = string.format('%s/style_rotate_%d.png', params.output_folder,i_r)
---      image.save(rotfilename, target_image_rt_caffe)
-      
+
       for i_s = -params.target_num_scale, params.target_num_scale do
         local max_sz = math.floor(math.max(target_image_rt_caffe:size()[2], target_image_rt_caffe:size()[3]) * torch.pow(params.target_step_scale, i_s))
         local target_image_rt_s_caffe = image.scale(target_image_rt_caffe, max_sz, 'bilinear')
@@ -190,7 +184,7 @@ local function main(params)
     local target_y_per_image = {}
     local target_imageid
     -- print('*****************************************************')
-    -- printma(string.format('build target mrf'));
+    -- print(string.format('build target mrf'));
     -- print('*****************************************************')
     for i_image = 1, #target_images_caffe do
       -- print(string.format('image %d, ', i_image))
@@ -334,7 +328,7 @@ local function main(params)
     local disp = deprocess(input_image:float())
     disp = image.minmax{tensor=disp, min=0, max=1}
     disp = image.scale(disp, render_width, render_height, 'bilinear')
-    local filename = string.format('%s/res_%d_%d.png', params.output_folder, cur_res, t)
+    local filename = string.format('%s/res_%d_%d.jpg', params.output_folder, cur_res, t)
     image.save(filename, disp)
     end
   end
@@ -396,41 +390,19 @@ local function main(params)
 
     cur_res = i_res
     num_calls = 0
---    local optim_state = {
---      maxIter = params.num_iter[i_res],
---      nCorrection = params.nCorrection,
---      verbose=true,
---      tolX = 0,
---     tolFun = 0,
---    }
-    
-    local optim_state = nil
-    if params.optimizer == 'lbfgs' then
-      optim_state = {
-	maxIter = params.num_iter[i_res],
-	nCorrection = params.nCorrection,
-	verbose=true,
-	tolX = 0,
-	tolFun = 0,
-      }
-    elseif params.optimizer == 'adam' then
-      optim_state = {
-	learningRate = params.learning_rate,
-      }
-    else
-      error(string.format('Unrecognized optimizer "%s"', params.optimizer))
-    end
+    local optim_state = {
+      maxIter = params.num_iter[i_res],
+      nCorrection = params.nCorrection,
+      verbose=true,
+      tolX = 0,
+      tolFun = 0,
+    }
 
     -- initialize image and target
     if i_res == 1 then
 
       if params.ini_method == 'random' then
         input_image = torch.randn(pyramid_source_image_caffe[i_res]:size()):float():mul(0.001)
-	--local noise_image = image.load(string.format('%s', params.noise_name), 3)
-	--noise_image = image.scale(noise_image, params.max_size, 'bilinear')
-	--local noise_image_caffe = preprocess(noise_image):float()
-	--noise_image_caffe = image.scale(noise_image_caffe, math.ceil(noise_image:size()[3] * math.pow(0.5, params.num_res - i_res)), math.ceil(noise_image:size()[2] * math.pow(0.5, ------params.num_res - i_res)), 'bilinear')
-	--input_image = noise_image_caffe:clone():float()
       elseif params.ini_method == 'image' then
         input_image = pyramid_source_image_caffe[i_res]:clone():float()
       else
@@ -465,29 +437,7 @@ local function main(params)
           local layer = cnn:get(i)
 
           i_net_layer = i_net_layer + 1
-	  local name = layer.name
-	  local layer_type = torch.type(layer)
-	  print ('layer type')
-	  print (layer_type)
-	  local is_pooling = (layer_type == 'cudnn.SpatialMaxPooling' or layer_type == 'nn.SpatialMaxPooling')
-	  if is_pooling and params.pooling == 'avg' then
-	    assert(layer.padW == 0 and layer.padH == 0)
-	    local kkW, kkH = layer.kW, layer.kH
-	    local ddW, ddH = layer.dW, layer.dH
-	    local avg_pool_layer = nn.SpatialAveragePooling(kkW, kkH, ddW, ddH):float()
-	    if params.gpu >= 0 then
-	      if params.backend ~= 'clnn' then
-		avg_pool_layer:cuda()
-	      else
-		avg_pool_layer:cl()
-	      end
-	    end
-	    local msg = 'Replacing max pooling at layer %d with average pooling'
-	    print(string.format(msg, i))
-	    net:add(avg_pool_layer)
-	  else
-	    net:add(layer)
-	  end
+          net:add(layer)
 
           -- add a content_losses layer
           if i == content_layers_pretrained[next_content_idx] then
@@ -505,14 +455,6 @@ local function main(params)
         end
       end -- for i = 1, #cnn do
 
-      --print('Implementing mrf layers ...')
-      --for i = 1, #mrf_layers do
-      -- if build_mrf(i) == false then
-      --   print('build_mrf failed')
-      --  do return end
-      -- end
-      --end
-	
       cnn = nil
       collectgarbage()
 
@@ -555,7 +497,7 @@ local function main(params)
     for i = 1, #mrf_layers do
       if build_mrf(i) == false then
         print('build_mrf failed')
-       do return end
+        do return end
       end
     end
 
@@ -571,17 +513,8 @@ local function main(params)
     y = net:forward(input_image)
     dy = input_image.new(#y):zero()
 
-    -- do optimizatoin    
-    if params.optimizer == 'lbfgs' then
-      print('Running optimization with L-BFGS')
---      local x, losses = optim.lbfgs(feval, input_image, optim_state)
-      local x, losses = mylbfgs(feval, input_image, optim_state, nil, mask)
-    elseif params.optimizer == 'adam' then
-      print('Running optimization with ADAM')
-      for t = 1, params.num_iter[i_res] do
-	local x, losses = optim.adam(feval, input_image, optim_state)
-      end
-    end
+    -- do optimizatoin
+    local x, losses = mylbfgs(feval, input_image, optim_state, nil, mask)
 
     local t = timer:time().real
     print(string.format('Synthesis finished at resolution %d, %f seconds', cur_res, t))

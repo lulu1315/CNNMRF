@@ -34,15 +34,9 @@ cmd:text('Below are all options with their default values in [].')
 cmd:text()
 cmd:text('Basic options: ')
 cmd:option('-content_name', 'potrait1', "The content image located in folder 'data/content'")
-cmd:option('-style_scale', 1 , "style scaling relative to max_size'")
-cmd:option('-normalize_gradients', false , "normalize gradients")
-cmd:option('-pooling', 'avg', 'max|avg')
-cmd:option('-optimizer', 'adam', 'lbfgs|adam')
-cmd:option('-learning_rate', 1)
---cmd:option('-noise_name', 'potrait1', "The noise image'")
 cmd:option('-style_name', 'picasso', "The style image located in folder 'data/style'")
 cmd:option('-ini_method', 'image', "Initial method, set to 'image' to use the content image as the initialization; set to 'random' to use random noise.")
-cmd:option('-type', 'transfer', 'Use Guided Synthesis (transfer) or development (dev)')
+cmd:option('-type', 'transfer', 'Use Guided Synthesis (transfer) or Un-guided Synthesis (syn)')
 cmd:option('-max_size',384, "Maximum size of the image. Larger image needs more time and memory.")
 cmd:option('-backend','cudnn', "Use cudnn' for CUDA-enabled GPUs or 'clnn' for OpenCL.")
 cmd:option('-mode','speed', "Try 'speed' if you have a GPU with more than 4GB memory, and try 'memory' otherwise. The 'speed' mode is significantly faster (especially for synthesizing high resolutions) at the cost of higher GPU memory. ")
@@ -73,8 +67,8 @@ cmd:option('-target_step_rotation', math.pi/24)
 cmd:option('-target_step_scale', 1.05)
 cmd:option('-output_folder', 'data/result/trans/MRF/')
 
-cmd:option('-proto_file', '/shared/foss/CNNMRF/data/models/VGG_ILSVRC_19_layers_deploy.prototxt')
-cmd:option('-model_file', '/shared/foss/CNNMRF/data/models/VGG_ILSVRC_19_layers.caffemodel')
+cmd:option('-proto_file', 'data/models/VGG_ILSVRC_19_layers_deploy.prototxt')
+cmd:option('-model_file', 'data/models/VGG_ILSVRC_19_layers.caffemodel')
 cmd:option('-gpu', 0, 'Zero-indexed ID of the GPU to use')
 cmd:option('-nCorrection', 25)
 cmd:option('-print_iter', 10)
@@ -92,7 +86,7 @@ local wrapper = nil
 if params.type == 'transfer' then
     wrapper = require 'transfer_CNNMRF_wrapper'
 else
-    wrapper = require 'transfer_CNNMRF_wrapper'
+    wrapper = require 'syn_CNNMRF_wrapper'
 end
 
 wrapper.main(params)

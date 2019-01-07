@@ -43,7 +43,7 @@ paths.dofile('mylib/helper.lua')
 -- {'2', '2', 'random', 384, 2, 3, {100, 100, 100}, {12, 21}, {1e-4, 1e-4}, {3, 3}, 1, 1, {2, 2}, {2, 2}, {0, 0}, 1e-3, 'speed', 256, 16, 'clnn'}, -- 193 seconds (240 seconds total)
 -- {'2', '2', 'random', 384, 2, 3, {100, 100, 100}, {12, 21}, {1e-4, 1e-4}, {3, 3}, 1, 1, {2, 2}, {2, 2}, {0, 0}, 1e-3, 'memory', 256, 16, 'clnn'}, -- 175 seconds (216 seconds total)
 local list_params = { 
-                        {'2', '2', 'random', 384, 2, 3, {100, 100, 100}, {12, 21}, {1e-4, 1e-4}, {3, 3}, 1, 1, {2, 2}, {2, 2}, {0, 0}, 1e-3, 'memory', 256, 16, 'cudnn'},
+                        {'ima_color.0569', 'nguyen', 'random', 384, 2, 3, {100, 100, 100}, {12, 21}, {1e-4, 1e-4}, {3, 3}, 1, 1, {2, 2}, {2, 2}, {0, 0}, 1e-3, 'memory', 256, 16, 'cudnn'},
                     }    
 
 run_tests(require 'syn_CNNMRF_wrapper', list_params)

@@ -32,7 +32,7 @@ local function main(params)
   -----------------------------------------------------------------------------------
   -- read images
   -----------------------------------------------------------------------------------
-  local source_image = image.load(string.format('data/content/%s.jpg', params.content_name), 3)
+  local source_image = image.load(string.format('data/content/%s.png', params.content_name), 3)
   local target_image = image.load(string.format('data/style/%s.jpg', params.style_name), 3)
 
   source_image = image.scale(source_image, params.max_size, 'bilinear')
